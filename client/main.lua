@@ -11,7 +11,7 @@ Citizen.CreateThread(function()
 
     ESX.PlayerData = ESX.GetPlayerData(); CreateBlips();
 
-    if (ESX.PlayerData.job.name ~= 'police' or ESX.PlayerData.job.name ~= 'ambulance') then StartThread() end
+    if ESX.PlayerData.job.name ~= 'police' and ESX.PlayerData.job.name ~= 'ambulance' then StartThread() end
 end)
 
 local SpeedCameras = {
@@ -56,47 +56,56 @@ function CreateBlips()
     end
 end
 
+RegisterNetEvent('esx:setJob')
+AddEventHandler('esx:setJob', function(job)
+    ESX.PlayerData.job.name = job;
+end)
+
 function StartThread()
-    local hasBeenFined = false;
+    Citizen.CreateThread(function()
+        local hasBeenFined = false;
 
-    while true do
+        while ESX.PlayerData.job.name ~= 'police' and ESX.PlayerData.job.name ~= 'ambulance' do
 
-        local letSleep = true;
-
-        for maxSpeed, zone in pairs(SpeedCameras) do
-            local playerPed = PlayerPedId();
-
-            local currentVehicle = GetVehiclePedIsIn(playerPed, false);
-            if currentVehicle ~= 0 and DoesEntityExist(currentVehicle) then
-                if GetPedInVehicleSeat(currentVehicle, -1) == playerPed then
-                    local playerCoords = GetEntityCoords(playerPed); 
-
-                    for i=1, #zone, 1 do
-                        local zoneCoords = vector3(zone[i].x, zone[i].y, zone[i].z);
-                        local Distance = #(playerCoords - zoneCoords);
-
-                        if Distance <= 100 then letSleep = false; end
-
-                        local vehicleSpeed = GetEntitySpeed(currentVehicle) * 3.6;
-                        if Distance <= 20 then
-                            if vehicleSpeed > maxSpeed and not hasBeenFined then
-                                flashScreen(); hasBeenFined = true;
-                                TriggerServerEvent('esx_speedcamera:addFine', maxSpeed);
-                            end
-                        else
-                            if vehicleSpeed < maxSpeed and hasBeenFined then
-                                hasBeenFined = false;
+            local letSleep = true;
+    
+            for maxSpeed, zone in pairs(SpeedCameras) do
+                local playerPed = PlayerPedId();
+    
+                local currentVehicle = GetVehiclePedIsIn(playerPed, false);
+                if currentVehicle ~= 0 and DoesEntityExist(currentVehicle) then
+                    if GetPedInVehicleSeat(currentVehicle, -1) == playerPed then
+                        local playerCoords = GetEntityCoords(playerPed); 
+    
+                        for i=1, #zone, 1 do
+                            local zoneCoords = vector3(zone[i].x, zone[i].y, zone[i].z);
+                            local Distance = #(playerCoords - zoneCoords);
+    
+                            if Distance <= 100 then letSleep = false; end
+    
+                            local vehicleSpeed = GetEntitySpeed(currentVehicle) * 3.6;
+                            if Distance <= 20 then
+                                if vehicleSpeed > maxSpeed and not hasBeenFined then
+                                    flashScreen(); hasBeenFined = true;
+                                    TriggerServerEvent('esx_speedcamera:addFine', maxSpeed);
+    
+                                    Wait(5000);
+                                end
+                            else
+                                if vehicleSpeed < maxSpeed and hasBeenFined then
+                                    hasBeenFined = false;
+                                end
                             end
                         end
                     end
                 end
             end
+            
+            if letSleep then Wait(500) end
+    
+            Wait(10);
         end
-        
-        if letSleep then Wait(500) end
-
-        Wait(10);
-    end
+    end)
 end
 
 function flashScreen() 
