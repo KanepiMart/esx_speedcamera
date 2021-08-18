@@ -1,347 +1,106 @@
--- BELOVE IS YOUR SETTINGS, CHANGE THEM TO WHATEVER YOU'D LIKE & MORE SETTINGS WILL COME IN THE FUTURE! --
-local useBilling = true -- OPTIONS: (true/false)
-local useCameraSound = true -- OPTIONS: (true/false)
-local useFlashingScreen = true -- OPTIONS: (true/false)
-local useBlips = true -- OPTIONS: (true/false)
-local alertPolice = true -- OPTIONS: (true/false)
-local alertSpeed = 150 -- OPTIONS: (1-5000 KMH)
-
-local defaultPrice60 = 100 -- THIS IS THE DEFAULT PRICE WITHOUT EXTRA COST FOR 60 ZONES
-local defaultPrice80 = 300 -- THIS IS THE DEFAULT PRICE WITHOUT EXTRA COST FOR 80 ZONES
-local defaultPrice120 = 500 -- THIS IS THE DEFAULT PRICE WITHOUT EXTRA COST FOR 120 ZONES
-
-local extraZonePrice10 = 100 -- THIS IS THE EXTRA COST IF 10 KM/H ABOVE LIMIT (REQUIRES "useBilling" to be set to true)
-local extraZonePrice20 = 500 -- THIS IS THE EXTRA COST IF 20 KM/H ABOVE LIMIT (REQUIRES "useBilling" to be set to true)
-local extraZonePrice30 = 1000 -- THIS IS THE EXTRA COST IF 30 KM/H ABOVE LIMIT (REQUIRES "useBilling" to be set to true)
--- ABOVE IS YOUR SETTINGS, CHANGE THEM TO WHATEVER YOU'D LIKE & MORE SETTINGS WILL COME IN THE FUTURE!  --
-
-ESX = nil
-local hasBeenCaught = false
-local finalBillingPrice = 0;
-
+ESX = nil;
 Citizen.CreateThread(function()
 	while ESX == nil do
 		TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-		Citizen.Wait(0)
+		Wait(10)
 	end
+
+    while not ESX.GetPlayerData().job do
+        Wait(10)
+    end
+
+    ESX.PlayerData = ESX.GetPlayerData(); CreateBlips();
+
+    if (ESX.PlayerData.job.name ~= 'police' or ESX.PlayerData.job.name ~= 'ambulance') then StartThread() end
 end)
 
-RegisterNetEvent('esx:playerLoaded')
-AddEventHandler('esx:playerLoaded', function(xPlayer)
-    PlayerData = xPlayer
-end)
+local SpeedCameras = {
+    [60] = {
+        vector3(-524.2645, -1776.3569, 21.3384)
+    },
 
-function hintToDisplay(text)
-	SetTextComponentFormat("STRING")
-	AddTextComponentString(text)
-	DisplayHelpTextFromStringLabel(0, 0, 1, -1)
-end
+    [80] = {
+        vector3(2506.0671, 4145.2431, 38.1054),
+        vector3(1258.2006, 789.4199, 103.219),
+        vector3(980.9982, 407.4164, 92.2374)
+    },
 
--- BLIP FOR SPEEDCAMERAS
-local blips = {
-	-- 60KM/H ZONES
-	{title="Speedcamera (60KM/H)", colour=1, id=1, x = -524.2645, y = -1776.3569, z = 21.3384}, -- 60KM/H ZONE
-	
-	-- 80KM/H ZONES
-	{title="Speedcamera (80KM/H)", colour=1, id=1, x = 2506.0671, y = 4145.2431, z = 38.1054}, -- 80KM/H ZONE
-	{title="Speedcamera (80KM/H)", colour=1, id=1, x = 1258.2006, y = 789.4199, z = 104.2190}, -- 80KM/H ZONE
-	{title="Speedcamera (80KM/H)", colour=1, id=1, x = 980.9982, y = 407.4164, z = 92.2374}, -- 80KM/H ZONE
-	
-	-- 120KM/H ZONES
-	{title="Speedcamera (120KM/H)", colour=1, id=1, x = 1584.9281, y = -993.4557, z = 59.3923}, -- 120KM/H ZONE
-	{title="Speedcamera (120KM/H)", colour=1, id=1, x = 2442.2006, y = -134.6004, z = 88.7765}, -- 120KM/H ZONE
-	{title="Speedcamera (120KM/H)", colour=1, id=1, x = 2871.7951, y = 3540.5795, z = 53.0930} -- 120KM/H ZONE
+    [120] = {
+        vector3(1584.9281, -993.4557, 59.3923),
+        vector3(2442.2006, -134.6004, 88.7765),
+        vector3(2871.7951, 3540.5795, 53.0930)
+    }
 }
 
-Citizen.CreateThread(function()
-	for _, info in pairs(blips) do
-		if useBlips == true then
-			info.blip = AddBlipForCoord(info.x, info.y, info.z)
-			SetBlipSprite(info.blip, info.id)
-			SetBlipDisplay(info.blip, 4)
-			SetBlipScale(info.blip, 0.5)
-			SetBlipColour(info.blip, info.colour)
-			SetBlipAsShortRange(info.blip, true)
-			BeginTextCommandSetBlipName("STRING")
-			AddTextComponentString(info.title)
-			EndTextCommandSetBlipName(info.blip)
-		end
-	end
-end)
+function CreateBlips()
+    local blipStyle = {
+        colourId = 1,
+        spriteId = 184
+    };
 
--- AREAS
-local Speedcamera60Zone = {
-    {x = -524.2645,y = -1776.3569,z = 21.3384}
-}
+    for maxSpeed, zone in pairs(SpeedCameras) do
+        for i=1, #zone, 1 do
+            local zoneCoords = vector3(zone[i].x, zone[i].y, zone[i].z);
+            local blip = AddBlipForCoord(zoneCoords);
+  
+            SetBlipSprite(blip, blipStyle.spriteId)
+            SetBlipDisplay(blip, 4)
+            SetBlipScale(blip, 0.5)
+            SetBlipColour(blip, blipStyle.colourId)
+            SetBlipAsShortRange(blip, true)
 
-local Speedcamera80Zone = {
-    {x = 2506.0671,y = 4145.2431,z = 38.1054},
-    {x = 1258.2006,y = 789.4199,z = 103.2190},
-    {x = 980.9982,y = 407.4164,z = 92.2374}
-}
-
-local Speedcamera120Zone = {
-    {x = 1584.9281,y = -993.4557,z = 59.3923},
-    {x = 2442.2006,y = -134.6004,z = 88.7765},
-    {x = 2871.7951,y = 3540.5795,z = 53.0930}
-}
-
--- ZONES
-Citizen.CreateThread(function()
-    while true do
-        Citizen.Wait(10)
-
-		-- 60 zone
-        for k in pairs(Speedcamera60Zone) do
-            local plyCoords = GetEntityCoords(GetPlayerPed(-1), false)
-            local dist = Vdist(plyCoords.x, plyCoords.y, plyCoords.z, Speedcamera60Zone[k].x, Speedcamera60Zone[k].y, Speedcamera60Zone[k].z)
-
-            if dist <= 20.0 then
-				local playerPed = GetPlayerPed(-1)
-				local playerCar = GetVehiclePedIsIn(playerPed, false)
-				local veh = GetVehiclePedIsIn(playerPed)
-				local SpeedKM = GetEntitySpeed(playerPed)*3.6
-				local maxSpeed = 60.0 -- THIS IS THE MAX SPEED IN KM/H
-				
-				if SpeedKM > maxSpeed then
-					if IsPedInAnyVehicle(playerPed, false) then
-						if (GetPedInVehicleSeat(playerCar, -1) == playerPed) then
-							if hasBeenCaught == false then
-								if GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE2" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE3" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE4" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICEB" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICET" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "SHERIFF" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "FIRETRUK" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "AMBULAN" then -- BLACKLISTED VEHICLE
-								-- VEHICLES ABOVE ARE BLACKLISTED
-								else
-									-- ALERT POLICE (START)
-									if alertPolice == true then
-										if SpeedKM > alertSpeed then
-											local x,y,z = table.unpack(GetEntityCoords(GetPlayerPed(-1), false))
-											TriggerServerEvent('esx_phone:send', 'police', ' Someone passed the speed camera, above ' .. alertSpeed.. ' KMH', true, {x =x, y =y, z =z})
-										end
-									end
-									-- ALERT POLICE (END)								
-								
-									-- FLASHING EFFECT (START)
-									if useFlashingScreen == true then
-										TriggerServerEvent('esx_speedcamera:openGUI')
-									end
-									
-									if useCameraSound == true then
-										TriggerServerEvent("InteractSound_SV:PlayOnSource", "speedcamera", 0.5)
-									end
-									
-									if useFlashingScreen == true then
-										Citizen.Wait(200)
-										TriggerServerEvent('esx_speedcamera:closeGUI')
-									end
-									-- FLASHING EFFECT (END)								
-								
-									TriggerEvent("pNotify:SendNotification", {text = "You've been caught by the speedcamera in a 60 zone! Your speed: " .. math.floor(SpeedKM) .. " KM/H", type = "error", timeout = 5000, layout = "centerLeft"})
-									
-									if useBilling == true then
-										if SpeedKM >= maxSpeed + 30 then
-											finalBillingPrice = defaultPrice60 + extraZonePrice30
-										elseif SpeedKM >= maxSpeed + 20 then
-											finalBillingPrice = defaultPrice60 + extraZonePrice20
-										elseif SpeedKM >= maxSpeed + 10 then
-											finalBillingPrice = defaultPrice60 + extraZonePrice10
-										else
-											finalBillingPrice = defaultPrice60
-										end
-										
-										TriggerServerEvent('esx_billing:sendBill', GetPlayerServerId(PlayerId()), 'society_police', 'Speedcamera (60KM/H) - Your speed: ' .. math.floor(SpeedKM) .. ' KM/H - ', finalBillingPrice) -- Sends a bill from the police
-									else
-										TriggerServerEvent('esx_speedcamera:PayBill60Zone')
-									end
-										
-									hasBeenCaught = true
-									Citizen.Wait(5000) -- This is here to make sure the player won't get fined over and over again by the same camera!
-								end
-							end
-						end
-					end
-					
-					hasBeenCaught = false
-				end
-            end
-        end
-		
-		-- 80 zone
-		for k in pairs(Speedcamera80Zone) do
-            local plyCoords = GetEntityCoords(GetPlayerPed(-1), false)
-            local dist = Vdist(plyCoords.x, plyCoords.y, plyCoords.z, Speedcamera80Zone[k].x, Speedcamera80Zone[k].y, Speedcamera80Zone[k].z)
-
-            if dist <= 20.0 then
-				local playerPed = GetPlayerPed(-1)
-				local playerCar = GetVehiclePedIsIn(playerPed, false)
-				local veh = GetVehiclePedIsIn(playerPed)
-				local SpeedKM = GetEntitySpeed(playerPed)*3.6
-				local maxSpeed = 80.0 -- THIS IS THE MAX SPEED IN KM/H
-				
-				if SpeedKM > maxSpeed then
-					if IsPedInAnyVehicle(playerPed, false) then
-						if (GetPedInVehicleSeat(playerCar, -1) == playerPed) then					
-							if hasBeenCaught == false then
-								if GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE2" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE3" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE4" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICEB" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICET" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "FIRETRUK" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "AMBULAN" then -- BLACKLISTED VEHICLE
-								-- VEHICLES ABOVE ARE BLACKLISTED
-								else
-									-- ALERT POLICE (START)
-									if alertPolice == true then
-										if SpeedKM > alertSpeed then
-											local x,y,z = table.unpack(GetEntityCoords(GetPlayerPed(-1), false))
-											TriggerServerEvent('esx_phone:send', 'police', ' Someone passed the speed camera, above ' .. alertSpeed.. ' KMH', true, {x =x, y =y, z =z})
-										end
-									end
-									-- ALERT POLICE (END)								
-								
-									-- FLASHING EFFECT (START)
-									if useFlashingScreen == true then
-										TriggerServerEvent('esx_speedcamera:openGUI')
-									end
-									
-									if useCameraSound == true then
-										TriggerServerEvent("InteractSound_SV:PlayOnSource", "speedcamera", 0.5)
-									end
-									
-									if useFlashingScreen == true then
-										Citizen.Wait(200)
-										TriggerServerEvent('esx_speedcamera:closeGUI')
-									end
-									-- FLASHING EFFECT (END)								
-								
-									TriggerEvent("pNotify:SendNotification", {text = "You've been caught by the speedcamera in a 80 zone! Your speed: " .. math.floor(SpeedKM) .. " KM/H", type = "error", timeout = 5000, layout = "centerLeft"})
-									
-									if useBilling == true then
-										if SpeedKM >= maxSpeed + 30 then
-											finalBillingPrice = defaultPrice80 + extraZonePrice30
-										elseif SpeedKM >= maxSpeed + 20 then
-											finalBillingPrice = defaultPrice80 + extraZonePrice20
-										elseif SpeedKM >= maxSpeed + 10 then
-											finalBillingPrice = defaultPrice80 + extraZonePrice10
-										else
-											finalBillingPrice = defaultPrice80
-										end
-									
-										TriggerServerEvent('esx_billing:sendBill', GetPlayerServerId(PlayerId()), 'society_police', 'Speedcamera (80KM/H) - Your speed: ' .. math.floor(SpeedKM) .. ' KM/H - ', finalBillingPrice) -- Sends a bill from the police
-									else
-										TriggerServerEvent('esx_speedcamera:PayBill80Zone')
-									end
-										
-									hasBeenCaught = true
-									Citizen.Wait(5000) -- This is here to make sure the player won't get fined over and over again by the same camera!
-								end
-							end
-						end
-					end
-					
-					hasBeenCaught = false
-				end
-            end
-        end
-		
-		-- 120 zone
-		for k in pairs(Speedcamera120Zone) do
-            local plyCoords = GetEntityCoords(GetPlayerPed(-1), false)
-            local dist = Vdist(plyCoords.x, plyCoords.y, plyCoords.z, Speedcamera120Zone[k].x, Speedcamera120Zone[k].y, Speedcamera120Zone[k].z)
-
-            if dist <= 20.0 then
-				local playerPed = GetPlayerPed(-1)
-				local playerCar = GetVehiclePedIsIn(playerPed, false)
-				local veh = GetVehiclePedIsIn(playerPed)
-				local SpeedKM = GetEntitySpeed(playerPed)*3.6
-				local maxSpeed = 120.0 -- THIS IS THE MAX SPEED IN KM/H
-				
-				if SpeedKM > maxSpeed then
-					if IsPedInAnyVehicle(playerPed, false) then
-						if (GetPedInVehicleSeat(playerCar, -1) == playerPed) then 
-							if hasBeenCaught == false then
-								if GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE2" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE3" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICE4" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICEB" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "POLICET" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "FIRETRUK" then -- BLACKLISTED VEHICLE
-								elseif GetDisplayNameFromVehicleModel(GetEntityModel(veh)) == "AMBULAN" then -- BLACKLISTED VEHICLE
-								-- VEHICLES ABOVE ARE BLACKLISTED
-								else
-									-- ALERT POLICE (START)
-									if alertPolice == true then
-										if SpeedKM > alertSpeed then
-											local x,y,z = table.unpack(GetEntityCoords(GetPlayerPed(-1), false))
-											TriggerServerEvent('esx_phone:send', 'police', ' Someone passed the speed camera, above ' .. alertSpeed.. ' KMH', true, {x =x, y =y, z =z})
-										end
-									end
-									-- ALERT POLICE (END)
-								
-									-- FLASHING EFFECT (START)
-									if useFlashingScreen == true then
-										TriggerServerEvent('esx_speedcamera:openGUI')
-									end
-									
-									if useCameraSound == true then
-										TriggerServerEvent("InteractSound_SV:PlayOnSource", "speedcamera", 0.5)
-									end
-									
-									if useFlashingScreen == true then
-										Citizen.Wait(200)
-										TriggerServerEvent('esx_speedcamera:closeGUI')
-									end
-									-- FLASHING EFFECT (END)
-								
-									TriggerEvent("pNotify:SendNotification", {text = "You've been caught by the speedcamera in a 120 zone! Your speed: " .. math.floor(SpeedKM) .. " KM/H", type = "error", timeout = 5000, layout = "centerLeft"})
-									
-									
-									if useBilling == true then
-										if SpeedKM >= maxSpeed + 30 then
-											finalBillingPrice = defaultPrice120 + extraZonePrice30
-										elseif SpeedKM >= maxSpeed + 20 then
-											finalBillingPrice = defaultPrice120 + extraZonePrice20
-										elseif SpeedKM >= maxSpeed + 10 then
-											finalBillingPrice = defaultPrice120 + extraZonePrice10
-										else
-											finalBillingPrice = defaultPrice120
-										end
-									
-										TriggerServerEvent('esx_billing:sendBill', GetPlayerServerId(PlayerId()), 'society_police', 'Speedcamera (120KM/H) - Your speed: ' .. math.floor(SpeedKM) .. ' KM/H - ', finalBillingPrice) -- Sends a bill from the police
-									else
-										TriggerServerEvent('esx_speedcamera:PayBill120Zone')
-									end
-										
-									hasBeenCaught = true
-									Citizen.Wait(5000) -- This is here to make sure the player won't get fined over and over again by the same camera!
-								end
-							end
-						end
-					end
-					
-					hasBeenCaught = false
-				end
-            end
+            BeginTextCommandSetBlipName("STRING")
+            AddTextComponentString( string.format('Kiiruskaamera (%s km/h)', maxSpeed) )
+            EndTextCommandSetBlipName(blip)
         end
     end
-end)
+end
 
-RegisterNetEvent('esx_speedcamera:openGUI')
-AddEventHandler('esx_speedcamera:openGUI', function()
-    SetNuiFocus(false,false)
-    SendNUIMessage({type = 'openSpeedcamera'})
-end)   
+function StartThread()
+    local hasBeenFined = false;
 
-RegisterNetEvent('esx_speedcamera:closeGUI')
-AddEventHandler('esx_speedcamera:closeGUI', function()
-    SendNUIMessage({type = 'closeSpeedcamera'})
-end)
+    while true do
+
+        local letSleep = true;
+
+        for maxSpeed, zone in pairs(SpeedCameras) do
+            local playerPed = PlayerPedId();
+
+            local currentVehicle = GetVehiclePedIsIn(playerPed, false);
+            if currentVehicle ~= 0 and DoesEntityExist(currentVehicle) then
+                if GetPedInVehicleSeat(currentVehicle, -1) == playerPed then
+                    local playerCoords = GetEntityCoords(playerPed); 
+
+                    for i=1, #zone, 1 do
+                        local zoneCoords = vector3(zone[i].x, zone[i].y, zone[i].z);
+                        local Distance = #(playerCoords - zoneCoords);
+
+                        if Distance <= 100 then letSleep = false; end
+
+                        local vehicleSpeed = GetEntitySpeed(currentVehicle) * 3.6;
+                        if Distance <= 20 then
+                            if vehicleSpeed > maxSpeed and not hasBeenFined then
+                                flashScreen(); hasBeenFined = true;
+                                TriggerServerEvent('esx_speedcamera:addFine', maxSpeed);
+                            end
+                        else
+                            if vehicleSpeed < maxSpeed and hasBeenFined then
+                                hasBeenFined = false;
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        if letSleep then Wait(500) end
+
+        Wait(10);
+    end
+end
+
+function flashScreen() 
+    SendNUIMessage({type = 'openSpeedcamera'}); 
+    Wait(200); 
+    SendNUIMessage({type = 'closeSpeedcamera'});
+end
